@@ -47,6 +47,8 @@ func init() {
 }
 
 func coursesHandler(w http.ResponseWriter, r *http.Request) { // handler function
+	log.Println("coursesHandler called")
+	log.Println("Received request for /course")
 	courseJSON, err := json.Marshal(CourseList)
 	switch r.Method {
 	case http.MethodGet:
@@ -80,35 +82,39 @@ func coursesHandler(w http.ResponseWriter, r *http.Request) { // handler functio
 }
 
 func getNextID() int {
-	hightestID := 1
-	for _, course := range CourseList { // find the highest ID in the list
-		if course.ID > hightestID {
-			hightestID = course.ID
+	highestID := 0
+	for _, course := range CourseList {
+		if course.ID > highestID {
+			highestID = course.ID
 		}
 	}
-	return hightestID + 1
+	return highestID + 1
 }
 
 func findID(ID int) (*Course, int) {
-	for i, course := range CourseList { // for range loop to find the course by ID
-		if course.ID == ID {
-			return &course, i
+	for i := range CourseList {
+		if CourseList[i].ID == ID {
+			return &CourseList[i], i
 		}
 	}
-	return nil, 0
+	return nil, -1
 }
 
 func courseHandler(w http.ResponseWriter, r *http.Request) {
 	urlPathSegments := strings.Split(r.URL.Path, "course/")
-	ID, err := strconv.Atoi(urlPathSegments[len(urlPathSegments)-1]) // get the last segment of the URL path
+	if len(urlPathSegments) < 2 {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	ID, err := strconv.Atoi(urlPathSegments[1])
 	if err != nil {
 		log.Println(err)
-		w.WriteHeader(http.StatusNotFound) // if ID is not a valid integer, return 400 Bad Request
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	course, listItemIndex := findID(ID)
 	if course == nil {
-		http.Error(w, fmt.Sprintf("No course with Id%d", ID), http.StatusNotFound)
+		http.Error(w, fmt.Sprintf("No course with Id %d", ID), http.StatusNotFound)
 		return
 	}
 	switch r.Method {
@@ -122,49 +128,47 @@ func courseHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write(courseJSON)
 	case http.MethodPut:
 		var updatedCourse Course
-		byteBody, err := io.ReadAll(r.Body) // read the request body
+		byteBody, err := io.ReadAll(r.Body)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		err = json.Unmarshal(byteBody, &updatedCourse) // unmarshal the JSON into a Course struct
+		err = json.Unmarshal(byteBody, &updatedCourse)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		if updatedCourse.ID != ID {
-			w.WriteHeader(http.StatusBadRequest) // if ID is provided, return 400 Bad Request
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		course = &updatedCourse             // update the course with the new values
-		CourseList[listItemIndex] = *course // update the course in the list
-		w.WriteHeader(http.StatusOK)        // send a 200 OK response
+		CourseList[listItemIndex] = updatedCourse
+		w.WriteHeader(http.StatusOK)
 		return
 	default:
-		w.WriteHeader(http.StatusMethodNotAllowed) // if the method is not GET or PUT, return 405 Method Not Allowed
+		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
-
 }
 
-func enableMiddleware(handler http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        w.Header().Set("Access-Control-Allow-Origin", "*")
-        w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length")
+func enableCorsMiddleware(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
-        if r.Method == http.MethodOptions {
-            w.WriteHeader(http.StatusOK)
-            return
-        }
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 
-        handler.ServeHTTP(w, r)
-    })
+		handler.ServeHTTP(w, r)
+	})
 }
 
 func main() {
 	courseItemHandler := http.HandlerFunc(courseHandler)
 	courseListHandler := http.HandlerFunc(coursesHandler)
-	http.Handle("/course/", enableMiddleware(courseItemHandler)) //especially for the course item
-	http.Handle("/course", enableMiddleware(courseListHandler))
+	http.Handle("/course/", enableCorsMiddleware(courseItemHandler)) //especially for the course item
+	http.Handle("/course", enableCorsMiddleware(courseListHandler))
 	http.ListenAndServe(":8080", nil)
 }
