@@ -20,7 +20,7 @@ func query(db *sql.DB) {
 		var inputId int
 		fmt.Scan(&inputId) // Scan user input for course ID
 
-		query := "SELECT id, course_name, price, instructor FROM sys.online_course WHERE id = ?"
+		query := "SELECT id, course_name, price, instructor FROM coursedb.online_course WHERE id = ?"
 		if err := db.QueryRow(query, inputId).Scan(&id, &course_name, &price, &instructor); err != nil { // query the database
 			log.Fatal(err)
 		}
