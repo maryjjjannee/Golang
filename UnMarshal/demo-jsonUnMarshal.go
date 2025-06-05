@@ -19,5 +19,5 @@ func main() {
 	if err != nil {
 		log.Fatal(err) // Fatal will log the error and stop the program
 	}
-	fmt.Println(e.Email)
+	fmt.Println(e)
 }
